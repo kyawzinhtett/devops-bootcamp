@@ -1,10 +1,10 @@
 resource "aws_security_group" "alb_sg" {
-  name        = "${var.project_name}-alb-sg"
-  description = "Allow HTTP and HTTPS traffic"
+  name        = "${var.project_name}-${var.environment}-alb-sg"
+  description = "Allow public HTTP and HTTPS traffic to the Application Load Balancer."
   vpc_id      = var.vpc_id
 
   ingress {
-    description = "HTTP"
+    description = "Allow public HTTP requests so the ALB can redirect them to HTTPS."
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -12,7 +12,7 @@ resource "aws_security_group" "alb_sg" {
   }
 
   ingress {
-    description = "HTTPS"
+    description = "Allow public HTTPS requests for the application domain."
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
@@ -20,6 +20,7 @@ resource "aws_security_group" "alb_sg" {
   }
 
   egress {
+    description = "Allow the ALB to forward requests to registered targets."
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
@@ -28,12 +29,10 @@ resource "aws_security_group" "alb_sg" {
 
 
   tags = {
-    Name        = var.project_name
+    Name        = "${var.project_name}-${var.environment}-alb-sg"
     Environment = var.environment
   }
 }
-
-################################################
 
 resource "aws_lb" "this" {
   name               = var.alb_name
@@ -41,9 +40,12 @@ resource "aws_lb" "this" {
   internal           = false
   security_groups    = [aws_security_group.alb_sg.id]
   subnets            = [var.public_subnet_1_id, var.public_subnet_2_id]
-}
 
-################################################
+  tags = {
+    Name        = var.alb_name
+    Environment = var.environment
+  }
+}
 
 resource "aws_lb_target_group" "app" {
   name        = "${var.project_name}-${var.environment}-tg"
@@ -63,6 +65,11 @@ resource "aws_lb_target_group" "app" {
     timeout             = 5
     unhealthy_threshold = 3
   }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-tg"
+    Environment = var.environment
+  }
 }
 
 resource "aws_lb_target_group_attachment" "app" {
@@ -71,11 +78,7 @@ resource "aws_lb_target_group_attachment" "app" {
   port             = var.target_port
 }
 
-##############################################
-# ======================================================================
-# Listener — Port 80 (HTTP → HTTPS Redirect)
-# ======================================================================
-
+# The HTTP listener keeps port 80 open only to redirect users to HTTPS.
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.this.arn
   port              = 80
@@ -92,10 +95,8 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# ======================================================================
-# Listener — Port 443 (HTTPS → EC2 Forward)
-# ======================================================================
-
+# The HTTPS listener owns TLS termination. Host-based rules decide which
+# requests are forwarded to the EC2 target group.
 resource "aws_lb_listener" "https" {
   load_balancer_arn = aws_lb.this.arn
   port              = 443

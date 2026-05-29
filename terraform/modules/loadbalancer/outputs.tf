@@ -1,3 +1,4 @@
-output "load_balancer_dns_name" {
-  value = aws_lb.this.dns_name
+output "dns_name" {
+  description = "Public DNS name of the Application Load Balancer."
+  value       = aws_lb.this.dns_name
 }
