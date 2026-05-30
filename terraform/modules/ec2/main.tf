@@ -10,7 +10,7 @@ data "aws_ami" "this" {
 
   filter {
     name   = "tag:ImageRole"
-    values = ["app"]
+    values = ["bagisto"]
   }
 
   filter {
